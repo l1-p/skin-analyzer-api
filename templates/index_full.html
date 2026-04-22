@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>皮肤健康智能分析平台 | 全功能版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        :root {
+            --bg-dark: #0a0f1c;
+            --panel-bg: #141b2b;
+            --primary: #2d9cdb;
+            --primary-dark: #1a6d9e;
+            --text-light: #eef2ff;
+            --text-muted: #8b9dc3;
+            --border: #2a3650;
+            --danger: #eb5757;
+            --success: #27ae60;
+        }
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 16px;
+        }
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #fff, var(--primary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .badge {
+            background: var(--primary-dark);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+        .main-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+        }
+        .control-card {
+            background: var(--panel-bg);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 24px;
+        }
+        .upload-area:hover {
+            border-color: var(--primary);
+            background: rgba(45, 156, 219, 0.05);
+        }
+        .upload-area img {
+            max-width: 100%;
+            max-height: 180px;
+            object-fit: contain;
+            display: none;
+        }
+        .placeholder-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+        button {
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-weight: 600;
+            padding: 12px;
+            width: 100%;
+            border-radius: 40px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: 0.2s;
+            margin-bottom: 12px;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-light);
+        }
+        .metrics-box {
+            margin-top: 24px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 16px;
+            padding: 16px;
+        }
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0;
+            font-size: 0.9rem;
+        }
+        .metric-value {
+            color: var(--primary);
+            font-weight: bold;
+        }
+        .progress-bar {
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: var(--primary);
+        }
+        .results-area {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            background: var(--panel-bg);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 16px;
+        }
+        .grid-item {
+            position: relative;
+            background: #0a0f1c;
+            border-radius: 12px;
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .grid-item img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+        .figure-label {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(0,0,0,0.6);
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: var(--primary);
+            z-index: 2;
+        }
+        .info-card {
+            background: var(--panel-bg);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 20px;
+            margin-top: 16px;
+        }
+        .info-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--primary);
+            padding-left: 12px;
+        }
+        .diagnosis-text {
+            background: rgba(45,156,219,0.1);
+            padding: 12px;
+            border-radius: 12px;
+            margin: 12px 0;
+            font-size: 1rem;
+        }
+        .report-text {
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            background: #0a0f1c;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            margin-top: 12px;
+        }
+        .flex-between {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loader-overlay {
+            position: fixed;
+            top:0;left:0;width:100%;height:100%;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 1000;
+        }
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        /* 拍照相关样式 */
+        .camera-preview {
+            margin-bottom: 12px;
+            display: none;
+            text-align: center;
+        }
+        .camera-preview video {
+            width: 100%;
+            border-radius: 12px;
+            background: #000;
+        }
+        .capture-btn {
+            background: var(--success);
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1> SkinAI · 全维度皮肤分析平台</h1>
+        <div class="badge">v3.0 | 分割+分类+肤质检测</div>
+    </div>
+    <div class="main-grid">
+        <!-- 左侧：控制区 -->
+        <div class="control-card">
+            <div class="upload-area" id="uploadZone">
+                <div class="placeholder-icon" id="uploadPlaceholderIcon">📸</div>
+                <div id="uploadPlaceholderText">点击或拖拽上传皮肤图像</div>
+                <img id="previewImg" alt="preview">
+                <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            </div>
+            <!-- 新增拍照按钮 -->
+            <button id="cameraBtn" class="btn-outline">📷 拍照上传</button>
+            <!-- 摄像头预览区域（初始隐藏） -->
+            <div class="camera-preview" id="cameraPreview">
+                <video id="video" autoplay muted></video>
+                <button id="captureBtn" class="capture-btn">📸 拍摄</button>
+                <button id="closeCameraBtn" style="background: #555;">❌ 关闭</button>
+            </div>
+            <button id="analyzeBtn" disabled>✨ 开始全面分析</button>
+            <button class="btn-outline" onclick="resetAll()">🔄 重置</button>
+
+            <div class="metrics-box">
+                <div class="metric-row">
+                    <span>💧 皮肤湿润度</span>
+                    <span class="metric-value" id="moistureVal">--</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" id="moistureFill"></div></div>
+                <div class="metric-row">
+                    <span>〰️ 裂纹等级</span>
+                    <span class="metric-value" id="crackLevel">--</span>
+                </div>
+                <div class="metric-row">
+                    <span>📐 病灶面积比</span>
+                    <span class="metric-value" id="areaRatio">--</span>
+                </div>
+                <div class="metric-row">
+                    <span>📊 分割 Dice</span>
+                    <span class="metric-value" id="diceVal">--</span>
+                </div>
+            </div>
+            <div class="info-card">
+                <div class="info-title">🔍 临床分类 & 恶性风险</div>
+                <div class="diagnosis-text" id="diseaseInfo">等待分析...</div>
+                <div class="flex-between" style="margin-top: 8px;">
+                    <span>🧬 模型良恶性判断：</span>
+                    <span id="malignancyLabel" style="font-weight:bold;">--</span>
+                </div>
+            </div>
+            <div class="info-card">
+                <div class="info-title">📋 综合诊断报告</div>
+                <div id="reportContainer" class="report-text">点击分析后生成详细报告</div>
+                <button id="downloadReportBtn" style="margin-top: 16px; background: #2c3e66;" disabled>📎 下载报告 (PDF)</button>
+            </div>
+        </div>
+
+        <!-- 右侧：结果区 -->
+        <div class="results-area">
+            <div class="image-grid">
+                <div class="grid-item"><div class="figure-label">原图</div><img id="figOrig" alt=""></div>
+                <div class="grid-item"><div class="figure-label">分割叠加</div><img id="figOverlay" alt=""></div>
+                <div class="grid-item"><div class="figure-label">二值掩码</div><img id="figMask" alt=""></div>
+                <div class="grid-item"><div class="figure-label">热力图</div><img id="figHeatmap" alt=""></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="loadingOverlay" class="loader-overlay">
+    <div class="spinner"></div>
+    <div style="margin-top: 20px;">模型推理中，请稍候...</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+    // DOM 元素
+    const fileInput = document.getElementById('fileInput');
+    const uploadZone = document.getElementById('uploadZone');
+    const previewImg = document.getElementById('previewImg');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const figOrig = document.getElementById('figOrig');
+    const figOverlay = document.getElementById('figOverlay');
+    const figMask = document.getElementById('figMask');
+    const figHeatmap = document.getElementById('figHeatmap');
+    const diseaseInfoDiv = document.getElementById('diseaseInfo');
+    const malignancyLabelSpan = document.getElementById('malignancyLabel');
+    const moistureVal = document.getElementById('moistureVal');
+    const moistureFill = document.getElementById('moistureFill');
+    const crackLevelSpan = document.getElementById('crackLevel');
+    const areaRatioSpan = document.getElementById('areaRatio');
+    const diceValSpan = document.getElementById('diceVal');
+    const reportContainer = document.getElementById('reportContainer');
+    const downloadReportBtn = document.getElementById('downloadReportBtn');
+
+    // 摄像头相关元素
+    const cameraBtn = document.getElementById('cameraBtn');
+    const cameraPreviewDiv = document.getElementById('cameraPreview');
+    const video = document.getElementById('video');
+    const captureBtn = document.getElementById('captureBtn');
+    const closeCameraBtn = document.getElementById('closeCameraBtn');
+    let stream = null; // 摄像头流
+
+    let currentFile = null;
+    let analysisData = null;
+
+    // 上传区域交互
+    uploadZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setCurrentFile(file);
+    });
+
+    // 拍照按钮点击：请求摄像头权限并显示预览
+    cameraBtn.addEventListener('click', async () => {
+        if (stream) {
+            // 如果已经打开摄像头，先关闭
+            closeCamera();
+        }
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            cameraPreviewDiv.style.display = 'block';
+            // 可选：隐藏其他无关按钮？不需要，但保持界面整洁
+        } catch (err) {
+            alert('无法打开摄像头：' + err.message + '\n请确保已授予摄像头权限，或使用文件上传。');
+        }
+    });
+
+    // 拍摄按钮：截图并生成文件
+    captureBtn.addEventListener('click', () => {
+        if (!stream) return;
+        // 创建一个临时 canvas 来捕获当前视频帧
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+            // 将 Blob 转换为 File 对象
+            const file = new File([blob], "camera_capture.jpg", { type: "image/jpeg" });
+            setCurrentFile(file);
+            // 拍照后关闭摄像头预览
+            closeCamera();
+        }, 'image/jpeg', 0.95);
+    });
+
+    // 关闭摄像头预览
+    closeCameraBtn.addEventListener('click', closeCamera);
+    function closeCamera() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+        }
+        video.srcObject = null;
+        cameraPreviewDiv.style.display = 'none';
+    }
+
+    // 统一处理选中的文件（无论是上传还是拍照）
+    function setCurrentFile(file) {
+        currentFile = file;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            previewImg.src = ev.target.result;
+            previewImg.style.display = 'block';
+            document.getElementById('uploadPlaceholderIcon').style.display = 'none';
+            document.getElementById('uploadPlaceholderText').style.display = 'none';
+            analyzeBtn.disabled = false;
+            resetResults();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function resetResults() {
+        [figOrig, figOverlay, figMask, figHeatmap].forEach(img => { img.style.opacity = '0'; img.src = ''; });
+        diseaseInfoDiv.innerText = '等待分析...';
+        malignancyLabelSpan.innerText = '--';
+        moistureVal.innerText = '--';
+        moistureFill.style.width = '0%';
+        crackLevelSpan.innerText = '--';
+        areaRatioSpan.innerText = '--';
+        diceValSpan.innerText = '--';
+        reportContainer.innerText = '点击分析后生成详细报告';
+        downloadReportBtn.disabled = true;
+        analysisData = null;
+    }
+
+    function resetAll() {
+        currentFile = null;
+        fileInput.value = '';
+        previewImg.src = '';
+        previewImg.style.display = 'none';
+        document.getElementById('uploadPlaceholderIcon').style.display = 'block';
+        document.getElementById('uploadPlaceholderText').style.display = 'block';
+        analyzeBtn.disabled = true;
+        resetResults();
+        // 如果摄像头开着，也关闭
+        closeCamera();
+    }
+
+    async function runAnalysis() {
+        if (!currentFile) return;
+        loadingOverlay.style.display = 'flex';
+        analyzeBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('file', currentFile);
+        try {
+            const response = await fetch('http://10.225.135.59:5000/full_analysis', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (data.success) {
+                analysisData = data;
+                // 展示四张图
+                figOrig.src = URL.createObjectURL(currentFile);
+                figOrig.style.opacity = '1';
+                figOverlay.src = data.overlay;
+                figOverlay.style.opacity = '1';
+                figMask.src = data.mask;
+                figMask.style.opacity = '1';
+                figHeatmap.src = data.heatmap;
+                figHeatmap.style.opacity = '1';
+
+                // 分类信息
+                diseaseInfoDiv.innerHTML = `<strong>${data.classification.disease}</strong><br>置信度: ${(data.classification.confidence * 100).toFixed(1)}%`;
+                malignancyLabelSpan.innerText = `${data.classification.malignancy} (置信度 ${(data.classification.malignancy_conf * 100).toFixed(1)}%)`;
+                if (data.classification.malignancy === '恶性') malignancyLabelSpan.style.color = '#eb5757';
+                else malignancyLabelSpan.style.color = '#27ae60';
+
+                // 皮肤指标
+                moistureVal.innerText = data.skin_condition.moisture;
+                moistureFill.style.width = `${data.skin_condition.moisture}%`;
+                crackLevelSpan.innerText = data.skin_condition.crack_level;
+                areaRatioSpan.innerText = (data.lesion_metrics.area_ratio * 100).toFixed(2) + '%';
+                diceValSpan.innerText = data.lesion_metrics.dice.toFixed(3);
+
+                // 报告
+                reportContainer.innerText = data.report_text;
+                downloadReportBtn.disabled = false;
+            } else {
+                alert('分析失败: ' + data.error);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('网络错误，请确保后端服务已启动。');
+        } finally {
+            loadingOverlay.style.display = 'none';
+            analyzeBtn.disabled = false;
+        }
+    }
+
+    function downloadReport() {
+        if (!analysisData) return;
+        const element = document.createElement('div');
+        element.style.padding = '20px';
+        element.style.fontFamily = 'sans-serif';
+        element.innerHTML = `
+            <h2>皮肤智能分析报告</h2>
+            <p><strong>生成时间:</strong> ${new Date().toLocaleString()}</p>
+            <hr/>
+            <h3>临床诊断</h3>
+            <p>疾病类别: ${analysisData.classification.disease} (置信度 ${(analysisData.classification.confidence*100).toFixed(1)}%)</p>
+            <p>恶性风险: ${analysisData.classification.malignancy}</p>
+            <h3>皮肤生理指标</h3>
+            <p>湿润度: ${analysisData.skin_condition.moisture} / 100</p>
+            <p>裂纹等级: ${analysisData.skin_condition.crack_level}</p>
+            <p>病灶面积占比: ${(analysisData.lesion_metrics.area_ratio*100).toFixed(2)}%</p>
+            <h3>综合建议</h3>
+            <pre>${analysisData.report_text}</pre>
+        `;
+        const opt = {
+            margin:       0.5,
+            filename:     'skin_report.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
+    }
+
+    analyzeBtn.addEventListener('click', runAnalysis);
+    downloadReportBtn.addEventListener('click', downloadReport);
+</script>
+</body>
+</html>
