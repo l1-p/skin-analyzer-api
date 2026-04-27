@@ -19,6 +19,7 @@ COPY requirements.txt .
 
 # 安装 Python 依赖
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir gunicorn
 
 # 复制所有项目文件（包括模型文件 best_model.pth）
 COPY . .
