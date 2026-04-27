@@ -1,10 +1,10 @@
-# 使用官方 Python 3.10 轻量镜像
+# 使用官方 Python 3.10 基础镜像
 FROM python:3.10-slim
 
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖（OpenCV 所需底层库）
+# 安装 OpenCV 所需的系统依赖（适用于最新 Debian）
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
@@ -14,17 +14,19 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制依赖清单
+# 复制依赖文件
 COPY requirements.txt .
 
-# 安装 Python 依赖
+# 安装 Python 依赖（包括 gunicorn 和 opencv-python-headless）
 RUN pip install --no-cache-dir -r requirements.txt
+
+# 如果你担心 gunicorn 没装上，可以再加一行显式安装
 RUN pip install --no-cache-dir gunicorn
 
-# 复制所有项目文件（包括模型文件 best_model.pth）
+# 复制所有项目文件
 COPY . .
 
-# 暴露端口（Railway 会自动注入 PORT 环境变量）
+# 暴露端口（Railway 会通过环境变量注入）
 EXPOSE $PORT
 
 # 启动命令
