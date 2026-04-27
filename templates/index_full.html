@@ -472,7 +472,7 @@
         const formData = new FormData();
         formData.append('file', currentFile);
         try {
-            const response = await fetch('http://10.225.135.59:5000/full_analysis', {
+            const response = await fetch('/full_analysis', {
                 method: 'POST',
                 body: formData
             });
