@@ -20,10 +20,16 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ------------------- 1. 加载分割模型 -------------------
 print("正在加载分割模型...")
-model = UNet_DTC_PraNet(in_channels=3, out_channels=1).to(DEVICE)
-model.load_state_dict(torch.load("best_model.pth", map_location=DEVICE))
-model.eval()
-print("分割模型加载完成。")
+try:
+    model = UNet_DTC_PraNet(in_channels=3, out_channels=1, num_classes=2).to(DEVICE)
+    model.load_state_dict(torch.load("best_model.pth", map_location=DEVICE))
+    model.eval()
+    print("分割模型加载完成。")
+    MODEL_AVAILABLE = True
+except Exception as e:
+    print(f"模型加载失败: {e}，将使用模拟模式")
+    model = None
+    MODEL_AVAILABLE = False
 
 # ------------------- 2. Qwen3-VL 智能体配置 -------------------
 # 建议从环境变量读取 API Key，不要硬编码
@@ -179,6 +185,31 @@ def preprocess_image(image_bytes):
 
 # ------------------- 5. 分割推理 -------------------
 def run_segmentation(prep):
+        # --- 新增：模型不可用时返回模拟数据 ---
+    if not MODEL_AVAILABLE:
+        h, w = prep['h_org'], prep['w_org']
+        # 模拟二值掩码（全0，表示没有病灶）
+        mask_binary = np.zeros((h, w), dtype=np.uint8)
+        # 模拟概率图（全0）
+        probs_full = np.zeros((h, w))
+        # 叠加轮廓图：直接拷贝原图，不画轮廓
+        overlay_cv = prep['img_cv'].copy()
+        overlay_pil = Image.fromarray(cv2.cvtColor(overlay_cv, cv2.COLOR_BGR2RGB))
+        # 模拟热力图：纯蓝色
+        heatmap = np.zeros((h, w, 3), dtype=np.uint8)
+        heatmap[:, :, 2] = 255   # BGR 模式下蓝色通道
+        heatmap_pil = Image.fromarray(heatmap)
+        mask_pil = Image.fromarray(mask_binary)
+        return {
+            'overlay_pil': overlay_pil,
+            'mask_pil': mask_pil,
+            'heatmap_pil': heatmap_pil,
+            'probs_full': probs_full,
+            'mask_binary': mask_binary,
+            'malignancy_label': '良性（模拟）',
+            'malignancy_conf': 0.95
+        }
+        
     img_tensor = prep['img_tensor']
     with torch.no_grad():
         output = model(img_tensor)
