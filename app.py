@@ -19,22 +19,11 @@ app = Flask(__name__)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ------------------- 1. 加载分割模型 -------------------
-_model = None
-
-def get_model():
-    global _model
-    if _model is None:
-        print("首次请求，开始加载分割模型...")
-        try:
-            from unet import UNet_DTC_PraNet
-            _model = UNet_DTC_PraNet(in_channels=3, out_channels=1, num_classes=2).to(DEVICE)
-            _model.load_state_dict(torch.load("best_model.pth", map_location=DEVICE))
-            _model.eval()
-            print("分割模型加载完成。")
-        except Exception as e:
-            print(f"模型加载失败: {e}，将使用模拟模式")
-            _model = False   # 标记为失败，避免重复尝试
-    return _model if _model is not False else None
+print("正在加载分割模型...")
+model = UNet_DTC_PraNet(in_channels=3, out_channels=1).to(DEVICE)
+model.load_state_dict(torch.load("best_model.pth", map_location=DEVICE))
+model.eval()
+print("分割模型加载完成。")
 
 # ------------------- 2. Qwen3-VL 智能体配置 -------------------
 # 建议从环境变量读取 API Key，不要硬编码
@@ -189,29 +178,7 @@ def preprocess_image(image_bytes):
     }
 
 # ------------------- 5. 分割推理 -------------------
-def run_segmentation(prep):
-    model = get_model()
-    if model is None:
-        # 模拟模式（返回假的预测结果）
-        h, w = prep['h_org'], prep['w_org']
-        mask_binary = np.zeros((h, w), dtype=np.uint8)
-        probs_full = np.zeros((h, w))
-        overlay_cv = prep['img_cv'].copy()
-        overlay_pil = Image.fromarray(cv2.cvtColor(overlay_cv, cv2.COLOR_BGR2RGB))
-        heatmap = np.zeros((h, w, 3), dtype=np.uint8)
-        heatmap[:, :, 2] = 255
-        heatmap_pil = Image.fromarray(heatmap)
-        mask_pil = Image.fromarray(mask_binary)
-        return {
-            'overlay_pil': overlay_pil,
-            'mask_pil': mask_pil,
-            'heatmap_pil': heatmap_pil,
-            'probs_full': probs_full,
-            'mask_binary': mask_binary,
-            'malignancy_label': '良性（模拟）',
-            'malignancy_conf': 0.95
-        }
-        
+def run_segmentation(prep):      
     img_tensor = prep['img_tensor']
     with torch.no_grad():
         output = model(img_tensor)
