@@ -264,15 +264,11 @@ def preprocess_image(image_bytes):
         'img_tensor': img_tensor
     }
 
-<<<<<<< HEAD
-# ------------------- 6. 分割推理 -------------------
-def run_segmentation(prep):
-=======
 
 # ------------------- 6. 分割推理 -------------------
 def run_segmentation(prep):
     7c4855d (replace app.py with new version)
->>>>>>> 136db47 (Replace app.py with new version)
+    136db47 (Replace app.py with new version)
     img_tensor = prep['img_tensor']
     with torch.no_grad():
         output = model(img_tensor)
