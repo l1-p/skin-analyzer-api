@@ -26,36 +26,31 @@ model.eval()
 print("分割模型加载完成。")
 
 # ------------------- 2. Qwen3-VL 智能体配置 -------------------
-# 建议从环境变量读取 API Key，不要硬编码
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-a94a4d6e7fc5411c90ff66b8e9a6ab5a")
 QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 QWEN_MODEL = "qwen3-vl-plus"  # 若需升级至 Qwen3，改为 "qwen3-vl-plus"
 
 def call_qwen_vl(image_pil, clinical_metrics, skin_metrics=None):
     """调用阿里云百炼 Qwen-VL 多模态模型，返回诊断+肤质评估"""
-    # 初始化 OpenAI 客户端
     client = OpenAI(
         api_key=DASHSCOPE_API_KEY,
         base_url=QWEN_BASE_URL,
     )
-
-    # 将 PIL Image 转换为 base64
     buffered = io.BytesIO()
     image_pil.save(buffered, format="JPEG")
     img_b64 = base64.b64encode(buffered.getvalue()).decode()
 
-    # 构建专业的提示词（包含肤质指标）
     prompt = f"""你是一位经验丰富的皮肤科主任医师。请分析这张皮肤照片，并结合以下客观测量数据给出诊断与肤质评估。
 
 【客观测量数据 - 病灶与皮肤状态】
 - 病灶区域占皮肤面积比例: {clinical_metrics['area_ratio']:.2%}
 - 健康皮肤湿润度指数: {clinical_metrics['moisture']}/100
 - 皮肤裂纹等级: {clinical_metrics['crack_level']}
-- 毛孔面积占比: {skin_metrics.get('pore_area_ratio', 'N/A')}
-- 油脂得分(0-100): {skin_metrics.get('oiliness_score', 'N/A')}
-- 泛红指数: {skin_metrics.get('red_index', 'N/A')}
-- 亮度标准差: {skin_metrics.get('brightness_std', 'N/A')}
-- 初步肤质判断: {skin_metrics.get('skin_type_hint', 'N/A')}
+- 毛孔面积占比: {skin_metrics.get('pore_area_ratio', 'N/A') if skin_metrics else 'N/A'}
+- 油脂得分(0-100): {skin_metrics.get('oiliness_score', 'N/A') if skin_metrics else 'N/A'}
+- 泛红指数: {skin_metrics.get('red_index', 'N/A') if skin_metrics else 'N/A'}
+- 亮度标准差: {skin_metrics.get('brightness_std', 'N/A') if skin_metrics else 'N/A'}
+- 初步肤质判断: {skin_metrics.get('skin_type_hint', 'N/A') if skin_metrics else 'N/A'}
 
 【输出要求】
 请严格按照以下JSON格式返回，不要包含任何其他注释或文字：
@@ -86,18 +81,15 @@ def call_qwen_vl(image_pil, clinical_metrics, skin_metrics=None):
             max_tokens=1024,
         )
         result_text = response.choices[0].message.content
-        # 清理 JSON（可能被 markdown 包裹）
         result_text = result_text.strip()
         if result_text.startswith("```json"):
             result_text = result_text[7:]
         if result_text.endswith("```"):
             result_text = result_text[:-3]
         diag = json.loads(result_text)
-        # 字段校验（原有字段 + 新增肤质字段）
         required_keys = ["disease", "confidence", "malignancy", "malignancy_conf", "recommendations"]
         skin_keys = ["skin_type", "skin_sensitivity", "skin_description"]
         if all(k in diag for k in required_keys):
-            # 确保肤质字段存在，若缺失则填入默认值
             for k in skin_keys:
                 if k not in diag:
                     diag[k] = "未评估" if k != "skin_sensitivity" else "未评估"
@@ -130,11 +122,10 @@ def fallback_diagnosis(clinical_metrics, skin_metrics=None):
         mal_conf = 0.05
         rec = "临床表现为良性，定期自我观察，若出现形态变化及时就医。"
 
-    # 回退肤质判断
     if skin_metrics:
         skin_type = skin_metrics.get("skin_type_hint", "未评估")
         skin_sens = "中" if skin_metrics.get("red_index", 0) > 15 else "低"
-        skin_desc = f"肤质倾向{skin_type}，泛红指数{skin_metrics.get('red_index', 'N/A'):.2f}"
+        skin_desc = f"肤质倾向{skin_type}，泛红指数{skin_metrics.get('red_index', 0):.2f}"
     else:
         skin_type = "未评估"
         skin_sens = "未评估"
@@ -153,7 +144,6 @@ def fallback_diagnosis(clinical_metrics, skin_metrics=None):
 
 # ------------------- 3. 皮肤个体检测模块（原湿润度+裂纹）-------------------
 def analyze_skin_condition(image_cv, mask_binary):
-    """返回 (moisture, crack_level, crack_density)"""
     if mask_binary.ndim == 3:
         mask_binary = mask_binary[:, :, 0]
     healthy_mask = cv2.bitwise_not(mask_binary)
@@ -185,11 +175,6 @@ def analyze_skin_condition(image_cv, mask_binary):
 
 # ------------------- 4. 新增：肤质检测模块 -------------------
 def analyze_skin_type(image_cv, mask_binary):
-    """
-    基于健康皮肤区域，返回多维度肤质指标
-    image_cv: BGR 原图
-    mask_binary: 病灶二值掩膜 (0=病灶, 255=健康)
-    """
     if mask_binary.ndim == 3:
         mask_binary = mask_binary[:, :, 0]
     healthy_mask = cv2.bitwise_not(mask_binary) if np.max(mask_binary) > 127 else mask_binary
@@ -200,33 +185,28 @@ def analyze_skin_type(image_cv, mask_binary):
     healthy_rgb = cv2.cvtColor(healthy_region, cv2.COLOR_BGR2RGB)
     gray = cv2.cvtColor(healthy_region, cv2.COLOR_BGR2GRAY)
 
-    # 1. 毛孔分析（自适应阈值 + 连通域）
     binary_adapt = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                          cv2.THRESH_BINARY_INV, 11, 2)
     contours, _ = cv2.findContours(binary_adapt, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     pore_sizes = []
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if 3 < area < 80:   # 根据图像分辨率调整
+        if 3 < area < 80:
             pore_sizes.append(area)
     pore_count = len(pore_sizes)
     pore_area_ratio = sum(pore_sizes) / np.sum(healthy_mask > 0) if pore_count > 0 else 0
 
-    # 2. 油脂 / 光泽估计（利用亮度与高频细节）
     laplacian = cv2.Laplacian(gray, cv2.CV_64F).var()
     _, bright_mask = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
     bright_pixels = np.sum(bright_mask & (healthy_mask > 0))
     oiliness_score = (bright_pixels / np.sum(healthy_mask > 0)) * 100
 
-    # 3. 红色度（敏感/泛红）
     r_channel = healthy_rgb[:, :, 0].astype(np.float32)
     g_channel = healthy_rgb[:, :, 1].astype(np.float32)
     red_index = np.mean(r_channel[healthy_mask > 0] / (g_channel[healthy_mask > 0] + 1)) * 100
 
-    # 4. 肤色均匀度（亮度标准差）
     brightness_std = np.std(gray[healthy_mask > 0])
 
-    # 5. 综合分类：干性/油性/混合等（简单规则，可后续加模型）
     if oiliness_score > 5 and pore_area_ratio > 0.002:
         skin_type_hint = "油性"
     elif oiliness_score < 1 and brightness_std < 20:
@@ -264,11 +244,8 @@ def preprocess_image(image_bytes):
         'img_tensor': img_tensor
     }
 
-
 # ------------------- 6. 分割推理 -------------------
 def run_segmentation(prep):
-    7c4855d (replace app.py with new version)
-    136db47 (Replace app.py with new version)
     img_tensor = prep['img_tensor']
     with torch.no_grad():
         output = model(img_tensor)
@@ -281,12 +258,10 @@ def run_segmentation(prep):
                     prep['pad_left']:prep['pad_left'] + prep['new_w']]
     probs_full = cv2.resize(probs_cropped, (prep['w_org'], prep['h_org']), interpolation=cv2.INTER_LINEAR)
     mask_binary = (probs_full > 0.5).astype(np.uint8) * 255
-    # 叠加轮廓
     overlay_cv = prep['img_cv'].copy()
     contours, _ = cv2.findContours(mask_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cv2.drawContours(overlay_cv, contours, -1, (0, 0, 255), 2)
     overlay_pil = Image.fromarray(cv2.cvtColor(overlay_cv, cv2.COLOR_BGR2RGB))
-    # 热力图
     heatmap = (cm.jet(probs_full)[:, :, :3] * 255).astype(np.uint8)
     heatmap_pil = Image.fromarray(heatmap)
     mask_pil = Image.fromarray(mask_binary, mode='L')
@@ -315,10 +290,8 @@ def full_analysis():
         prep = preprocess_image(image_bytes)
         seg = run_segmentation(prep)
 
-        # 原有皮肤状态分析
         moisture, crack_level, crack_density = analyze_skin_condition(prep['img_cv'], seg['mask_binary'])
-        lesion_area_ratio = float(np.sum(seg['mask_binary'] > 0) / (prep['w_org'] * prep['h_org']))  # 改这里
-        # 新增：肤质检测
+        lesion_area_ratio = float(np.sum(seg['mask_binary'] > 0) / (prep['w_org'] * prep['h_org']))
         skin_metrics = analyze_skin_type(prep['img_cv'], seg['mask_binary'])
 
         clinical_metrics = {
@@ -327,10 +300,8 @@ def full_analysis():
             "area_ratio": lesion_area_ratio
         }
 
-        # 调用大模型（传入肤质指标）
         qwen_result = call_qwen_vl(prep['img_pil'], clinical_metrics, skin_metrics)
 
-        # 生成报告（包含肤质描述）
         report_text = f"""【皮肤科智能诊断报告】
 
 ▶ 诊断结果：{qwen_result['disease']} (置信度 {qwen_result['confidence']:.1%})
@@ -348,18 +319,12 @@ def full_analysis():
 
 注：本报告由AI辅助生成，最终诊断请结合临床病理检查。
 """
-        # 在现有 full_analysis 函数中，替换最后的 return jsonify({...}) 部分
-
-        # 1. 数值类型转换
         moisture = float(moisture)
         crack_density = float(crack_density)
         lesion_area_ratio = float(lesion_area_ratio)
 
-        # 2. 转换 skin_metrics 中的数值（预防万一）
         skin_metrics_clean = {
-            "pore_count": int(skin_metrics["pore_count"]) if isinstance(skin_metrics.get("pore_count"),
-                                                                        (np.integer, int)) else skin_metrics.get(
-                "pore_count", 0),
+            "pore_count": int(skin_metrics["pore_count"]),
             "pore_area_ratio": float(skin_metrics["pore_area_ratio"]),
             "oiliness_score": float(skin_metrics["oiliness_score"]),
             "red_index": float(skin_metrics["red_index"]),
@@ -374,16 +339,16 @@ def full_analysis():
             'heatmap': pil_to_base64(seg['heatmap_pil']),
             'classification': {
                 'disease': qwen_result['disease'],
-                'confidence': float(qwen_result['confidence']),  # 显式 float
+                'confidence': float(qwen_result['confidence']),
                 'malignancy': qwen_result['malignancy'],
-                'malignancy_conf': float(qwen_result['malignancy_conf'])  # 显式 float
+                'malignancy_conf': float(qwen_result['malignancy_conf'])
             },
             'skin_condition': {
                 'moisture': moisture,
                 'crack_level': crack_level,
                 'crack_density': crack_density
             },
-            'skin_metrics': skin_metrics_clean,  # 使用清洗后的肤质数据
+            'skin_metrics': skin_metrics_clean,
             'lesion_metrics': {
                 'area_ratio': lesion_area_ratio,
                 'dice': 0.95,
